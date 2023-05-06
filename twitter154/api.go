@@ -165,27 +165,27 @@ func (c *Client) GetUsername(userId string) (username string, err error) {
 }
 
 type User struct {
-	CreationDate     time.Time `json:"creation_date"`
-	UserId           string    `json:"user_id"`
-	Username         string    `json:"username"`
-	Name             string    `json:"name"`
-	FollowerCount    int       `json:"follower_count"`
-	FollowingCount   int       `json:"following_count"`
-	FavouritesCount  int       `json:"favourites_count"`
-	IsPrivate        bool      `json:"is_private"`
-	IsVerified       bool      `json:"is_verified"`
-	Location         string    `json:"location"`
-	ProfilePicUrl    string    `json:"profile_pic_url"`
-	ProfileBannerUrl string    `json:"profile_banner_url"`
-	Description      string    `json:"description"`
-	ExternalUrl      string    `json:"external_url"`
-	NumberOfTweets   int       `json:"number_of_tweets"`
-	Bot              bool      `json:"bot"`
-	Timestamp        int       `json:"timestamp"`
-	HasNftAvatar     bool      `json:"has_nft_avatar"`
-	Category         string    `json:"category"`
-	DefaultProfile   bool      `json:"default_profile"`
-	DefaultImage     bool      `json:"default_profile_image"`
+	CreationDate     string `json:"creation_date"`
+	UserId           string `json:"user_id"`
+	Username         string `json:"username"`
+	Name             string `json:"name"`
+	FollowerCount    int    `json:"follower_count"`
+	FollowingCount   int    `json:"following_count"`
+	FavouritesCount  int    `json:"favourites_count"`
+	IsPrivate        bool   `json:"is_private"`
+	IsVerified       bool   `json:"is_verified"`
+	Location         string `json:"location"`
+	ProfilePicUrl    string `json:"profile_pic_url"`
+	ProfileBannerUrl string `json:"profile_banner_url"`
+	Description      string `json:"description"`
+	ExternalUrl      string `json:"external_url"`
+	NumberOfTweets   int    `json:"number_of_tweets"`
+	Bot              bool   `json:"bot"`
+	Timestamp        int    `json:"timestamp"`
+	HasNftAvatar     bool   `json:"has_nft_avatar"`
+	Category         string `json:"category"`
+	DefaultProfile   bool   `json:"default_profile"`
+	DefaultImage     bool   `json:"default_profile_image"`
 }
 
 // GetUser returns the public information about a Twitter profile.
@@ -669,4 +669,13 @@ type Location = any
 
 func (c *Client) GetLocations() (locations []Location, err error) {
 	return locations, ErrNotImplemented
+}
+
+func parseTwitterTime(twitterTime string) (t time.Time, err error) {
+	layout := "Wed Mar 18 14:17:29 +0000 2020"
+	t, err = time.Parse(layout, twitterTime)
+	if err != nil {
+		return t, err
+	}
+	return t, nil
 }
