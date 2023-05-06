@@ -318,23 +318,22 @@ func (c *Client) GetUserTweets(userId string, opts ...getUserTweetsOption) (twee
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	token := r.ContinuationToken
-	continutationParams := append(params, param{"continuation_token", token})
-	for token != "" {
-		data, err := c.get([]string{"user", "tweets", "continuation"}, continutationParams)
+	tweets = append(tweets, r.Results...)
+	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
+
+	for len(r.Results) != 0 {
+		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
 		if err != nil {
 			return nil, fmt.Errorf("get user: %w", err)
 		}
 
-		var r getUserTweetsResponse
 		err = json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
 		tweets = append(tweets, r.Results...)
-		token = r.ContinuationToken
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", token})
+		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
 	}
 
 	return tweets, nil
@@ -345,7 +344,6 @@ type getUserFollowingResponse struct {
 	ContinuationToken string `json:"continuation_token"`
 }
 
-// TODO: fix this in the other functions
 // GetUserFollowing returns a list of user's following.
 func (c *Client) GetUserFollowing(userId string) (following []User, err error) {
 	params := []param{
@@ -409,23 +407,22 @@ func (c *Client) GetUserFollowers(userId string) (followers []User, err error) {
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	token := r.ContinuationToken
-	continutationParams := append(params, param{"continuation_token", token})
-	for token != "" {
-		data, err := c.get([]string{"user", "followers", "continuation"}, continutationParams)
+	followers = append(followers, r.Results...)
+	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
+
+	for len(r.Results) != 0 {
+		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
 		if err != nil {
 			return nil, fmt.Errorf("get user: %w", err)
 		}
 
-		var r getUserFollowersResponse
 		err = json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
 		followers = append(followers, r.Results...)
-		token = r.ContinuationToken
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", token})
+		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
 	}
 
 	return followers, nil
@@ -465,23 +462,21 @@ func (c *Client) GetTweetReplies(tweetId string) (replies []Tweet, err error) {
 	}
 
 	replies = append(replies, r.Replies...)
-	token := r.ContinuationToken
-	continutationParams := append(params, param{"continuation_token", token})
-	for token != "" {
-		data, err := c.get([]string{"tweet", "replies", "continuation"}, continutationParams)
+	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
+
+	for len(r.Replies) != 0 {
+		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
 		if err != nil {
-			return nil, fmt.Errorf("get tweet replies: %w", err)
+			return nil, fmt.Errorf("get user: %w", err)
 		}
 
-		var r getTweetRepliesResponse
 		err = json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
 		replies = append(replies, r.Replies...)
-		token = r.ContinuationToken
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", token})
+		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
 	}
 
 	return replies, nil
@@ -534,23 +529,21 @@ func (c *Client) GetTweetUserFavorites(tweetId string) (users []User, err error)
 	}
 
 	users = append(users, r.Favorites...)
-	token := r.ContinuationToken
-	continutationParams := append(params, param{"continuation_token", token})
-	for token != "" {
-		data, err := c.get([]string{"tweet", "favoriters", "continuation"}, continutationParams)
+	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
+
+	for len(r.Favorites) != 0 {
+		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
 		if err != nil {
-			return nil, fmt.Errorf("get tweet favorites: %w", err)
+			return nil, fmt.Errorf("get user: %w", err)
 		}
 
-		var r getUserFavoritesResponse
 		err = json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
 		users = append(users, r.Favorites...)
-		token = r.ContinuationToken
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", token})
+		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
 	}
 
 	return users, nil
