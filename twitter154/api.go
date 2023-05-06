@@ -188,10 +188,27 @@ type User struct {
 	DefaultImage     bool      `json:"default_profile_image"`
 }
 
-// GetUserDetails returns the public information about a Twitter profile.
-func (c *Client) GetUserDetails(userId string) (user User, err error) {
+// GetUser returns the public information about a Twitter profile.
+func (c *Client) GetUser(userId string) (user User, err error) {
 	data, err := c.get([]string{"user", "details"}, []param{
 		{"user_id", userId},
+	})
+	if err != nil {
+		return user, fmt.Errorf("get user: %w", err)
+	}
+
+	err = json.Unmarshal(data, &user)
+	if err != nil {
+		return user, fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	return user, nil
+}
+
+// GetUserByUsername returns the public information about a Twitter profile.
+func (c *Client) GetUserByUsername(username string) (user User, err error) {
+	data, err := c.get([]string{"user", "details"}, []param{
+		{"username", username},
 	})
 	if err != nil {
 		return user, fmt.Errorf("get user: %w", err)
