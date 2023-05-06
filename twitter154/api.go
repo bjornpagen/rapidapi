@@ -165,27 +165,32 @@ func (c *Client) GetUsername(userId string) (username string, err error) {
 }
 
 type User struct {
-	CreationDate     string `json:"creation_date"`
-	UserId           string `json:"user_id"`
-	Username         string `json:"username"`
-	Name             string `json:"name"`
-	FollowerCount    int    `json:"follower_count"`
-	FollowingCount   int    `json:"following_count"`
-	FavouritesCount  int    `json:"favourites_count"`
-	IsPrivate        bool   `json:"is_private"`
-	IsVerified       bool   `json:"is_verified"`
-	Location         string `json:"location"`
-	ProfilePicUrl    string `json:"profile_pic_url"`
-	ProfileBannerUrl string `json:"profile_banner_url"`
-	Description      string `json:"description"`
-	ExternalUrl      string `json:"external_url"`
-	NumberOfTweets   int    `json:"number_of_tweets"`
-	Bot              bool   `json:"bot"`
-	Timestamp        int    `json:"timestamp"`
-	HasNftAvatar     bool   `json:"has_nft_avatar"`
-	Category         string `json:"category"`
-	DefaultProfile   bool   `json:"default_profile"`
-	DefaultImage     bool   `json:"default_profile_image"`
+	CreationDate     string       `json:"creation_date"`
+	UserId           string       `json:"user_id"`
+	Username         string       `json:"username"`
+	Name             string       `json:"name"`
+	FollowerCount    int          `json:"follower_count"`
+	FollowingCount   int          `json:"following_count"`
+	FavouritesCount  int          `json:"favourites_count"`
+	IsPrivate        bool         `json:"is_private"`
+	IsVerified       bool         `json:"is_verified"`
+	Location         string       `json:"location"`
+	ProfilePicUrl    string       `json:"profile_pic_url"`
+	ProfileBannerUrl string       `json:"profile_banner_url"`
+	Description      string       `json:"description"`
+	ExternalUrl      string       `json:"external_url"`
+	NumberOfTweets   int          `json:"number_of_tweets"`
+	Bot              bool         `json:"bot"`
+	Timestamp        int          `json:"timestamp"`
+	HasNftAvatar     bool         `json:"has_nft_avatar"`
+	Category         UserCategory `json:"category"`
+	DefaultProfile   bool         `json:"default_profile"`
+	DefaultImage     bool         `json:"default_profile_image"`
+}
+
+type UserCategory struct {
+	Name string `json:"name"`
+	Id   int    `json:"id"`
 }
 
 // GetUser returns the public information about a Twitter profile.
@@ -340,6 +345,7 @@ type getUserFollowingResponse struct {
 	ContinuationToken string `json:"continuation_token"`
 }
 
+// TODO: fix this in the other functions
 // GetUserFollowing returns a list of user's following.
 func (c *Client) GetUserFollowing(userId string) (following []User, err error) {
 	params := []param{
@@ -347,7 +353,6 @@ func (c *Client) GetUserFollowing(userId string) (following []User, err error) {
 		{"limit", _pageLimit},
 	}
 
-	following = make([]User, 0)
 	data, err := c.get([]string{"user", "following"}, params)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
@@ -359,23 +364,22 @@ func (c *Client) GetUserFollowing(userId string) (following []User, err error) {
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	token := r.ContinuationToken
-	continutationParams := append(params, param{"continuation_token", token})
-	for token != "" {
+	following = append(following, r.Results...)
+	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
+
+	for len(r.Results) != 0 {
 		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
 		if err != nil {
 			return nil, fmt.Errorf("get user: %w", err)
 		}
 
-		var r getUserFollowingResponse
 		err = json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
 		following = append(following, r.Results...)
-		token = r.ContinuationToken
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", token})
+		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
 	}
 
 	return following, nil
