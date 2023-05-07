@@ -192,12 +192,7 @@ func getResultPaginated[T any, R resultPaginated[T]](c *Client, path []string, p
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
-		for i, p := range params {
-			if p.key == "continuation_token" {
-				params[i].value = r.Token()
-				break
-			}
-		}
+		params[len(params)-1].value = r.Token()
 	}
 
 	return results, nil
