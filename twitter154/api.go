@@ -574,7 +574,7 @@ func (c *Client) GetTweetUserRetweets(tweetId string) (users []User, err error) 
 }
 
 type getUserFavoritesResponse struct {
-	Favorites         []User `json:"favorites"`
+	Favoriters        []User `json:"favoriters"`
 	ContinuationToken string `json:"continuation_token"`
 }
 
@@ -595,10 +595,10 @@ func (c *Client) GetTweetUserFavorites(tweetId string) (users []User, err error)
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	users = append(users, r.Favorites...)
+	users = append(users, r.Favoriters...)
 	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
 
-	for len(r.Favorites) != 0 {
+	for len(r.Favoriters) != 0 {
 		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
 		if err != nil {
 			return nil, fmt.Errorf("get user: %w", err)
@@ -609,7 +609,7 @@ func (c *Client) GetTweetUserFavorites(tweetId string) (users []User, err error)
 			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 
-		users = append(users, r.Favorites...)
+		users = append(users, r.Favoriters...)
 		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
 	}
 
