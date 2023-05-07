@@ -165,28 +165,28 @@ func (c *Client) GetUsername(userId string) (username string, err error) {
 }
 
 type User struct {
-	CreationDate     string       `json:"creation_date"`
-	UserId           string       `json:"user_id"`
-	Username         string       `json:"username"`
-	Name             string       `json:"name"`
-	FollowerCount    int          `json:"follower_count"`
-	FollowingCount   int          `json:"following_count"`
-	FavouritesCount  int          `json:"favourites_count"`
-	IsPrivate        bool         `json:"is_private"`
-	IsVerified       bool         `json:"is_verified"`
-	IsBlueVerified   bool         `json:"is_blue_verified"`
-	Location         string       `json:"location"`
-	ProfilePicUrl    string       `json:"profile_pic_url"`
-	ProfileBannerUrl string       `json:"profile_banner_url"`
-	Description      string       `json:"description"`
-	ExternalUrl      string       `json:"external_url"`
-	NumberOfTweets   int          `json:"number_of_tweets"`
-	Bot              bool         `json:"bot"`
-	Timestamp        int          `json:"timestamp"`
-	HasNftAvatar     bool         `json:"has_nft_avatar"`
-	Category         UserCategory `json:"category"`
-	DefaultProfile   bool         `json:"default_profile"`
-	DefaultImage     bool         `json:"default_profile_image"`
+	CreationDate     string        `json:"creation_date"`
+	UserId           string        `json:"user_id"`
+	Username         string        `json:"username"`
+	Name             string        `json:"name"`
+	FollowerCount    int           `json:"follower_count"`
+	FollowingCount   int           `json:"following_count"`
+	FavouritesCount  int           `json:"favourites_count"`
+	IsPrivate        bool          `json:"is_private"`
+	IsVerified       bool          `json:"is_verified"`
+	IsBlueVerified   bool          `json:"is_blue_verified"`
+	Location         string        `json:"location"`
+	ProfilePicUrl    string        `json:"profile_pic_url"`
+	ProfileBannerUrl string        `json:"profile_banner_url"`
+	Description      string        `json:"description"`
+	ExternalUrl      string        `json:"external_url"`
+	NumberOfTweets   int           `json:"number_of_tweets"`
+	Bot              bool          `json:"bot"`
+	Timestamp        int           `json:"timestamp"`
+	HasNftAvatar     bool          `json:"has_nft_avatar"`
+	Category         *UserCategory `json:"category"`
+	DefaultProfile   bool          `json:"default_profile"`
+	DefaultImage     bool          `json:"default_profile_image"`
 }
 
 type UserCategory struct {
@@ -259,6 +259,12 @@ type Tweet struct {
 	RetweetStatus     any              `json:"retweet_status"`
 }
 
+type VideoUrl struct {
+	Bitrate     int    `json:"bitrate"`
+	ContentType string `json:"content_type"`
+	Url         string `json:"url"`
+}
+
 type ExtendedEntities struct {
 	Media []Media `json:"media"`
 }
@@ -318,12 +324,6 @@ type Media struct {
 			Url         string `json:"url"`
 		} `json:"variants"`
 	} `json:"video_info"`
-}
-
-type VideoUrl struct {
-	Bitrate     int    `json:"bitrate"`
-	ContentType string `json:"content_type"`
-	Url         string `json:"url"`
 }
 
 type BindingValue struct {
