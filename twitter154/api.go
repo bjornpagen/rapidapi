@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
-	"time"
 
 	"go.uber.org/ratelimit"
 )
@@ -98,15 +98,15 @@ func (c *Client) buildUrl(p []string) string {
 }
 
 func (c *Client) buildUrlWithParameters(path []string, params []param) string {
-	url := c.buildUrl(path)
+	uri := c.buildUrl(path)
 	for i, p := range params {
 		separator := "&"
 		if i == 0 {
 			separator = "?"
 		}
-		url = fmt.Sprintf("%s%s%s=%v", url, separator, p.key, p.value)
+		uri = fmt.Sprintf("%s%s%s=%s", uri, separator, p.key, url.QueryEscape(fmt.Sprintf("%v", p.value)))
 	}
-	return url
+	return uri
 }
 
 func (c *Client) do(req *http.Request) (data []byte, err error) {
@@ -141,194 +141,115 @@ func (c *Client) get(path []string, params []param) (data []byte, err error) {
 	return c.do(req)
 }
 
-// GetUsername returns a User's username given a user ID.
-func (c *Client) GetUsername(userId string) (username string, err error) {
-	data, err := c.get([]string{"user", "id"}, []param{
-		{"user_id", userId},
-	})
+type result[T any] interface {
+	Result() T
+}
+
+func getResult[T any, R result[T]](c *Client, path []string, params []param) (result T, err error) {
+	data, err := c.get(path, params)
 	if err != nil {
-		return "", fmt.Errorf("get user: %w", err)
+		return result, fmt.Errorf("get: %w", err)
 	}
 
-	type response struct {
-		UserId   string `json:"user_id"`
-		Username string `json:"username"`
-	}
-
-	var r response
+	var r R
 	err = json.Unmarshal(data, &r)
 	if err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+		return result, fmt.Errorf("unmarshal response: %w", err)
 	}
 
-	return r.Username, nil
+	return r.Result(), nil
 }
 
-type User struct {
-	CreationDate     string        `json:"creation_date"`
-	UserId           string        `json:"user_id"`
-	Username         string        `json:"username"`
-	Name             string        `json:"name"`
-	FollowerCount    int           `json:"follower_count"`
-	FollowingCount   int           `json:"following_count"`
-	FavouritesCount  int           `json:"favourites_count"`
-	IsPrivate        bool          `json:"is_private"`
-	IsVerified       bool          `json:"is_verified"`
-	IsBlueVerified   bool          `json:"is_blue_verified"`
-	Location         string        `json:"location"`
-	ProfilePicUrl    string        `json:"profile_pic_url"`
-	ProfileBannerUrl string        `json:"profile_banner_url"`
-	Description      string        `json:"description"`
-	ExternalUrl      string        `json:"external_url"`
-	NumberOfTweets   int           `json:"number_of_tweets"`
-	Bot              bool          `json:"bot"`
-	Timestamp        int           `json:"timestamp"`
-	HasNftAvatar     bool          `json:"has_nft_avatar"`
-	Category         *UserCategory `json:"category"`
-	DefaultProfile   bool          `json:"default_profile"`
-	DefaultImage     bool          `json:"default_profile_image"`
+type resultPaginated[T any] interface {
+	Result() []T
+	Token() string
 }
 
-type UserCategory struct {
-	Name string `json:"name"`
-	Id   int    `json:"id"`
+func getResultPaginated[T any, R resultPaginated[T]](c *Client, path []string, params []param) (results []T, err error) {
+	data, err := c.get(path, params)
+	if err != nil {
+		return nil, fmt.Errorf("get: %w", err)
+	}
+
+	var r R
+	err = json.Unmarshal(data, &r)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	path = append(path, "continuation")
+	params = append(params, param{"continuation_token", r.Token()})
+
+	for len(r.Result()) != 0 {
+		results = append(results, r.Result()...)
+		data, err := c.get(path, params)
+		if err != nil {
+			return nil, fmt.Errorf("get: %w", err)
+		}
+
+		err = json.Unmarshal(data, &r)
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal response: %w", err)
+		}
+
+		for i, p := range params {
+			if p.key == "continuation_token" {
+				params[i].value = r.Token()
+				break
+			}
+		}
+	}
+
+	return results, nil
 }
+
+type getUsernameResponse struct {
+	UserId   string `json:"user_id"`
+	Username string `json:"username"`
+}
+
+func (r getUsernameResponse) Result() string {
+	return r.Username
+}
+
+var _ result[string] = (*getUsernameResponse)(nil)
+
+// GetUsername returns a User's username given a user ID.
+func (c *Client) GetUsername(userId string) (username string, err error) {
+	path := []string{"user", "username"}
+	params := []param{
+		{"user_id", userId},
+	}
+
+	return getResult[string, getUsernameResponse](c, path, params)
+}
+
+type getUserResponse = User
+
+func (r getUserResponse) Result() User {
+	return r
+}
+
+var _ result[User] = (*getUserResponse)(nil)
 
 // GetUser returns the public information about a Twitter profile.
 func (c *Client) GetUser(userId string) (user User, err error) {
-	data, err := c.get([]string{"user", "details"}, []param{
+	path := []string{"user", "details"}
+	params := []param{
 		{"user_id", userId},
-	})
-	if err != nil {
-		return user, fmt.Errorf("get user: %w", err)
 	}
 
-	err = json.Unmarshal(data, &user)
-	if err != nil {
-		return user, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	return user, nil
+	return getResult[User, getUserResponse](c, path, params)
 }
 
 // GetUserByUsername returns the public information about a Twitter profile.
 func (c *Client) GetUserByUsername(username string) (user User, err error) {
-	data, err := c.get([]string{"user", "details"}, []param{
+	path := []string{"user", "details"}
+	params := []param{
 		{"username", username},
-	})
-	if err != nil {
-		return user, fmt.Errorf("get user: %w", err)
 	}
 
-	err = json.Unmarshal(data, &user)
-	if err != nil {
-		return user, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	return user, nil
-}
-
-type getUserTweetsResponse struct {
-	Results           []Tweet `json:"results"`
-	ContinuationToken string  `json:"continuation_token"`
-}
-
-type Tweet struct {
-	TweetId           string           `json:"tweet_id"`
-	CreationDate      string           `json:"creation_date"`
-	Text              string           `json:"text"`
-	MediaUrl          []string         `json:"media_url"`
-	VideoUrl          []VideoUrl       `json:"video_url"`
-	User              User             `json:"user"`
-	Language          string           `json:"language"`
-	FavoriteCount     int              `json:"favorite_count"`
-	RetweetCount      int              `json:"retweet_count"`
-	ReplyCount        int              `json:"reply_count"`
-	QuoteCount        int              `json:"quote_count"`
-	Retweet           bool             `json:"retweet"`
-	Views             int64            `json:"views"`
-	Timestamp         int64            `json:"timestamp"`
-	VideoViewCount    int64            `json:"video_view_count"`
-	InReplyToStatusId any              `json:"in_reply_to_status_id"`
-	QuotedStatusId    any              `json:"quoted_status_id"`
-	BindingValues     []BindingValue   `json:"binding_values"`
-	ExpandedUrl       string           `json:"expanded_url"`
-	RetweetTweetId    any              `json:"retweet_tweet_id"`
-	ExtendedEntities  ExtendedEntities `json:"extended_entities"`
-	ConversationId    string           `json:"conversation_id"`
-	RetweetStatus     any              `json:"retweet_status"`
-}
-
-type VideoUrl struct {
-	Bitrate     int    `json:"bitrate"`
-	ContentType string `json:"content_type"`
-	Url         string `json:"url"`
-}
-
-type ExtendedEntities struct {
-	Media []Media `json:"media"`
-}
-
-type Media struct {
-	DisplayUrl          string `json:"display_url"`
-	ExpandedUrl         string `json:"expanded_url"`
-	IdStr               string `json:"id_str"`
-	Indices             []int  `json:"indices"`
-	MediaKey            string `json:"media_key"`
-	MediaUrlHttps       string `json:"media_url_https"`
-	Type                string `json:"type"`
-	Url                 string `json:"url"`
-	AdditionalMediaInfo struct {
-		Monetizable bool `json:"monetizable"`
-	} `json:"additional_media_info"`
-	MediaStats struct {
-		ViewCount int `json:"viewCount"`
-	} `json:"mediaStats"`
-	ExtMediaAvailability struct {
-		Status string `json:"status"`
-	} `json:"ext_media_availability"`
-	Features struct {
-	} `json:"features"`
-	Sizes struct {
-		Large struct {
-			H      int    `json:"h"`
-			W      int    `json:"w"`
-			Resize string `json:"resize"`
-		} `json:"large"`
-		Medium struct {
-			H      int    `json:"h"`
-			W      int    `json:"w"`
-			Resize string `json:"resize"`
-		} `json:"medium"`
-		Small struct {
-			H      int    `json:"h"`
-			W      int    `json:"w"`
-			Resize string `json:"resize"`
-		} `json:"small"`
-		Thumb struct {
-			H      int    `json:"h"`
-			W      int    `json:"w"`
-			Resize string `json:"resize"`
-		} `json:"thumb"`
-	} `json:"sizes"`
-	OriginalInfo struct {
-		Height int `json:"height"`
-		Width  int `json:"width"`
-	} `json:"original_info"`
-	VideoInfo struct {
-		AspectRatio    []int `json:"aspect_ratio"`
-		DurationMillis int   `json:"duration_millis"`
-		Variants       []struct {
-			Bitrate     int    `json:"bitrate,omitempty"`
-			ContentType string `json:"content_type"`
-			Url         string `json:"url"`
-		} `json:"variants"`
-	} `json:"video_info"`
-}
-
-type BindingValue struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
+	return getResult[User, getUserResponse](c, path, params)
 }
 
 type getUserTweetsOptions struct {
@@ -350,8 +271,24 @@ func IncludePinned() getUserTweetsOption {
 	}
 }
 
+type getUserTweetsResponse struct {
+	Results           []Tweet `json:"results"`
+	ContinuationToken string  `json:"continuation_token"`
+}
+
+func (g getUserTweetsResponse) Result() []Tweet {
+	return g.Results
+}
+
+func (g getUserTweetsResponse) Token() string {
+	return g.ContinuationToken
+}
+
+var _ resultPaginated[Tweet] = (*getUserTweetsResponse)(nil)
+
 // GetUserTweets returns a list of user's tweets.
 func (c *Client) GetUserTweets(userId string, opts ...getUserTweetsOption) (tweets []Tweet, err error) {
+	path := []string{"user", "tweets"}
 	params := []param{
 		{"user_id", userId},
 		{"limit", _pageLimit},
@@ -374,125 +311,44 @@ func (c *Client) GetUserTweets(userId string, opts ...getUserTweetsOption) (twee
 		params = append(params, param{"include_pinned", "false"})
 	}
 
-	data, err := c.get([]string{"user", "tweets"}, params)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
-	var r getUserTweetsResponse
-	err = json.Unmarshal(data, &r)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	tweets = append(tweets, r.Results...)
-	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
-
-	for len(r.Results) != 0 {
-		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
-		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
-		}
-
-		err = json.Unmarshal(data, &r)
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal response: %w", err)
-		}
-
-		tweets = append(tweets, r.Results...)
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
-	}
-
-	return tweets, nil
+	return getResultPaginated[Tweet, getUserTweetsResponse](c, path, params)
 }
 
-type getUserFollowingResponse struct {
+type getUserFollowsResponse struct {
 	Results           []User `json:"results"`
 	ContinuationToken string `json:"continuation_token"`
 }
 
+func (g getUserFollowsResponse) Result() []User {
+	return g.Results
+}
+
+func (g getUserFollowsResponse) Token() string {
+	return g.ContinuationToken
+}
+
+var _ resultPaginated[User] = (*getUserFollowsResponse)(nil)
+
 // GetUserFollowing returns a list of user's following.
 func (c *Client) GetUserFollowing(userId string) (following []User, err error) {
+	path := []string{"user", "following"}
 	params := []param{
 		{"user_id", userId},
 		{"limit", _pageLimit},
 	}
 
-	data, err := c.get([]string{"user", "following"}, params)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
-	var r getUserFollowingResponse
-	err = json.Unmarshal(data, &r)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	following = append(following, r.Results...)
-	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
-
-	for len(r.Results) != 0 {
-		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
-		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
-		}
-
-		err = json.Unmarshal(data, &r)
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal response: %w", err)
-		}
-
-		following = append(following, r.Results...)
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
-	}
-
-	return following, nil
-}
-
-type getUserFollowersResponse struct {
-	Results           []User `json:"results"`
-	ContinuationToken string `json:"continuation_token"`
+	return getResultPaginated[User, getUserFollowsResponse](c, path, params)
 }
 
 // GetUserFollowers returns a list of user's followers.
 func (c *Client) GetUserFollowers(userId string) (followers []User, err error) {
+	path := []string{"user", "followers"}
 	params := []param{
 		{"user_id", userId},
 		{"limit", _pageLimit},
 	}
 
-	followers = make([]User, 0)
-	data, err := c.get([]string{"user", "followers"}, params)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
-	var r getUserFollowersResponse
-	err = json.Unmarshal(data, &r)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	followers = append(followers, r.Results...)
-	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
-
-	for len(r.Results) != 0 {
-		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
-		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
-		}
-
-		err = json.Unmarshal(data, &r)
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal response: %w", err)
-		}
-
-		followers = append(followers, r.Results...)
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
-	}
-
-	return followers, nil
+	return getResultPaginated[User, getUserFollowsResponse](c, path, params)
 }
 
 // GetUserLikes returns a list of user's likes given a user ID
@@ -510,62 +366,42 @@ type getTweetRepliesResponse struct {
 	ContinuationToken string  `json:"continuation_token"`
 }
 
+func (g getTweetRepliesResponse) Result() []Tweet {
+	return g.Replies
+}
+
+func (g getTweetRepliesResponse) Token() string {
+	return g.ContinuationToken
+}
+
+var _ resultPaginated[Tweet] = (*getTweetRepliesResponse)(nil)
+
 // GetTweetReplies returns a list of replies to a tweet.
 func (c *Client) GetTweetReplies(tweetId string) (replies []Tweet, err error) {
-	replies = make([]Tweet, 0)
+	path := []string{"tweet", "replies"}
 	params := []param{
 		{"tweet_id", tweetId},
 	}
 
-	data, err := c.get([]string{"tweet", "replies"}, params)
-	if err != nil {
-		return nil, fmt.Errorf("get tweet replies: %w", err)
-	}
-
-	var r getTweetRepliesResponse
-	err = json.Unmarshal(data, &r)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	replies = append(replies, r.Replies...)
-	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
-
-	for len(r.Replies) != 0 {
-		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
-		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
-		}
-
-		err = json.Unmarshal(data, &r)
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal response: %w", err)
-		}
-
-		replies = append(replies, r.Replies...)
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
-	}
-
-	return replies, nil
+	return getResultPaginated[Tweet, getTweetRepliesResponse](c, path, params)
 }
+
+type getTweetDetailsResponse = Tweet
+
+func (g getTweetDetailsResponse) Result() Tweet {
+	return g
+}
+
+var _ result[Tweet] = (*getTweetDetailsResponse)(nil)
 
 // GetTweetDetails returns general information about a tweet.
 func (c *Client) GetTweetDetails(tweetId string) (tweet Tweet, err error) {
+	path := []string{"tweet", "details"}
 	params := []param{
 		{"tweet_id", tweetId},
 	}
 
-	data, err := c.get([]string{"tweet", "details"}, params)
-	if err != nil {
-		return tweet, fmt.Errorf("get tweet details: %w", err)
-	}
-
-	err = json.Unmarshal(data, &tweet)
-	if err != nil {
-		return tweet, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	return tweet, nil
+	return getResult[Tweet, getTweetDetailsResponse](c, path, params)
 }
 
 // GetTweetUserRetweets returns a list of users who retweeted the tweet
@@ -578,42 +414,24 @@ type getUserFavoritesResponse struct {
 	ContinuationToken string `json:"continuation_token"`
 }
 
+func (g getUserFavoritesResponse) Result() []User {
+	return g.Favoriters
+}
+
+func (g getUserFavoritesResponse) Token() string {
+	return g.ContinuationToken
+}
+
+var _ resultPaginated[User] = (*getUserFavoritesResponse)(nil)
+
 // GetTweetUserFavorites returns a list of users who favorited the tweet
 func (c *Client) GetTweetUserFavorites(tweetId string) (users []User, err error) {
+	path := []string{"tweet", "favoriters"}
 	params := []param{
 		{"tweet_id", tweetId},
 	}
 
-	data, err := c.get([]string{"tweet", "favoriters"}, params)
-	if err != nil {
-		return nil, fmt.Errorf("get tweet favorites: %w", err)
-	}
-
-	var r getUserFavoritesResponse
-	err = json.Unmarshal(data, &r)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal response: %w", err)
-	}
-
-	users = append(users, r.Favoriters...)
-	continutationParams := append(params, param{"continuation_token", r.ContinuationToken})
-
-	for len(r.Favoriters) != 0 {
-		data, err := c.get([]string{"user", "following", "continuation"}, continutationParams)
-		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
-		}
-
-		err = json.Unmarshal(data, &r)
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal response: %w", err)
-		}
-
-		users = append(users, r.Favoriters...)
-		continutationParams = append(continutationParams[:len(continutationParams)-1], param{"continuation_token", r.ContinuationToken})
-	}
-
-	return users, nil
+	return getResultPaginated[User, getUserFavoritesResponse](c, path, params)
 }
 
 type getSearchResponse struct {
@@ -733,13 +551,4 @@ type Location = any
 
 func (c *Client) GetLocations() (locations []Location, err error) {
 	return locations, ErrNotImplemented
-}
-
-func parseTwitterTime(twitterTime string) (t time.Time, err error) {
-	layout := "Wed Mar 18 14:17:29 +0000 2020"
-	t, err = time.Parse(layout, twitterTime)
-	if err != nil {
-		return t, err
-	}
-	return t, nil
 }
