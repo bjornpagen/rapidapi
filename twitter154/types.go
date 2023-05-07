@@ -46,14 +46,14 @@ type Tweet struct {
 	Views             int64            `json:"views"`
 	Timestamp         int64            `json:"timestamp"`
 	VideoViewCount    int64            `json:"video_view_count"`
-	InReplyToStatusId any              `json:"in_reply_to_status_id"`
-	QuotedStatusId    any              `json:"quoted_status_id"`
+	InReplyToStatusId string           `json:"in_reply_to_status_id"`
+	QuotedStatusId    string           `json:"quoted_status_id"`
 	BindingValues     []BindingValue   `json:"binding_values"`
 	ExpandedUrl       string           `json:"expanded_url"`
-	RetweetTweetId    any              `json:"retweet_tweet_id"`
 	ExtendedEntities  ExtendedEntities `json:"extended_entities"`
 	ConversationId    string           `json:"conversation_id"`
-	RetweetStatus     any              `json:"retweet_status"`
+	RetweetTweetId    string           `json:"retweet_tweet_id"`
+	RetweetStatus     *Tweet           `json:"retweet_status"`
 }
 
 type VideoUrl struct {
