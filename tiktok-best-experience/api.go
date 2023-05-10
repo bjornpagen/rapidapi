@@ -1,4 +1,4 @@
-package tiktok_best_experience
+package api
 
 import (
 	"encoding/json"

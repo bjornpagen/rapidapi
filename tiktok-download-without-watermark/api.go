@@ -1,4 +1,4 @@
-package tiktok_download_without_watermark
+package api
 
 import (
 	"encoding/json"

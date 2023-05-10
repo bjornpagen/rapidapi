@@ -1,4 +1,4 @@
-package twitter
+package api
 
 type User struct {
 	CreationDate     string        `json:"creation_date"`
